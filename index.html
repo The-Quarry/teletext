@@ -151,7 +151,7 @@
     text-decoration: none;
   }
   .story:hover .story-title { color: var(--yellow); }
-  .story-page { color: var(--cyan); font-size: 19px; }
+  .story-page  { color: var(--cyan); font-size: 19px; }
   .story-title { color: var(--white); font-size: 19px; transition: color 0.1s; }
   .story-meta  { color: var(--green); font-size: 16px; grid-column: 2; margin-top: -1px; }
 
@@ -202,7 +202,6 @@
   .blink { animation: blink 1s step-start infinite; color: var(--yellow); }
   @keyframes blink { 50% { opacity: 0; } }
 
-  /* Loading / error states */
   .loading { color: var(--cyan); padding: 6px; font-size: 19px; }
   .error   { color: var(--red);  padding: 6px; font-size: 19px; }
 
@@ -244,7 +243,6 @@
     <div class="ticker-inner" id="ticker">◆ LOADING LATEST HEADLINES...</div>
   </div>
 
-  <!-- LEAD STORY -->
   <div class="lead-story" id="lead-box">
     <div class="lead-label">▶ LEAD STORY &nbsp;<span class="blink">■</span></div>
     <div class="loading">FETCHING LATEST STORIES...</div>
@@ -252,13 +250,11 @@
 
   <div class="pxline">────────────────────────────────────────</div>
 
-  <!-- LATEST NEWS -->
   <div class="section-title">▌ LATEST NEWS &nbsp;&nbsp;&nbsp; P101</div>
   <div id="stories-list"><div class="loading">PLEASE WAIT...</div></div>
 
   <div class="pxline">────────────────────────────────────────</div>
 
-  <!-- DIG DEEPER + INFO HUB — static, these are curated sections -->
   <div class="two-col">
     <div class="col-box">
       <div class="col-head">▌ DIG DEEPER &nbsp;P200</div>
@@ -272,7 +268,6 @@
 
   <div class="pxline">────────────────────────────────────────</div>
 
-  <!-- ELECTION -->
   <div class="section-title" style="background:var(--yellow);color:var(--black);">▌ BY-ELECTION 2026 &nbsp;&nbsp;&nbsp; P400</div>
   <div id="election-stories"><div class="loading">LOADING...</div></div>
 
@@ -292,16 +287,31 @@
 </div>
 
 <script>
-  // ─── REPLACE THIS WITH YOUR GHOST CONTENT API KEY ───
-  const API_KEY = '5619ad50252c22bdf98677add6';
-  const BASE    = 'https://the-quarry.ghost.io';
+  // ─── ADD YOUR GHOST DETAILS HERE ────────────────────
+  var API_KEY = '5619ad50252c22bdf98677add6';
+  var BASE    = 'https://the-quarry.ghost.io'; // e.g. https://www.thequarry.media/ghost/api/content
+  // ────────────────────────────────────────────────────
 
-  // ─── CLOCK & DATE ───────────────────────────────────
-  const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-  const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  var DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  var MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
+  function truncate(str, max) {
+    var up = str.toUpperCase();
+    return up.length > max ? up.slice(0, max - 1) + '\u2026' : up;
+  }
+
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    return String(d.getDate()).padStart(2,'0') + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  function authorName(post) {
+    return post.primary_author ? post.primary_author.name : 'The Quarry';
+  }
+
+  // Clock
   function updateClock() {
-    const n = new Date();
+    var n = new Date();
     document.getElementById('clock').textContent =
       String(n.getHours()).padStart(2,'0') + ':' +
       String(n.getMinutes()).padStart(2,'0') + ':' +
@@ -310,8 +320,9 @@
   updateClock();
   setInterval(updateClock, 1000);
 
-  (function setDate() {
-    const n = new Date();
+  // Date
+  (function() {
+    var n = new Date();
     document.getElementById('datestr').textContent =
       DAYS[n.getDay()] + ' ' +
       String(n.getDate()).padStart(2,'0') + ' ' +
@@ -319,105 +330,159 @@
       n.getFullYear();
   })();
 
-  // ─── HELPERS ────────────────────────────────────────
-  function fmtDate(iso) {
-    const d = new Date(iso);
-    return String(d.getDate()).padStart(2,'0') + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  function fetchPosts(params) {
+    var qs = new URLSearchParams(Object.assign({ key: API_KEY }, params));
+    return fetch(BASE + '/posts/?' + qs.toString())
+      .then(function(r) {
+        if (!r.ok) throw new Error('API ' + r.status);
+        return r.json();
+      })
+      .then(function(j) { return j.posts || []; });
   }
 
-  function truncate(str, max) {
-    str = str.toUpperCase();
-    return str.length > max ? str.slice(0, max - 1) + '…' : str;
-  }
-
-  async function fetchPosts(params) {
-    const qs = new URLSearchParams({ key: API_KEY, ...params });
-    const r  = await fetch(`${BASE}/posts/?${qs}`);
-    if (!r.ok) throw new Error('API error ' + r.status);
-    const j  = await r.json();
-    return j.posts;
-  }
-
-  // ─── RENDER LEAD STORY ──────────────────────────────
+  // All DOM building uses textContent/setAttribute — never innerHTML with post data
   function renderLead(post) {
-    document.getElementById('lead-box').innerHTML = `
-      <div class="lead-label">▶ LEAD STORY &nbsp;<span class="blink">■</span></div>
-      <a href="${post.url}" target="_blank">
-        <div class="lead-title">${truncate(post.title, 120)}</div>
-      </a>
-      <div class="lead-meta">${post.primary_author?.name || 'The Quarry'} &nbsp;·&nbsp; ${fmtDate(post.published_at)}</div>
-      <a class="lead-link" href="${post.url}" target="_blank">▶ SEE FULL STORY &nbsp;&gt;&gt;</a>
-    `;
+    var el = document.getElementById('lead-box');
+    el.innerHTML = '';
+
+    var label = document.createElement('div');
+    label.className = 'lead-label';
+    label.innerHTML = '&#9654; LEAD STORY &nbsp;<span class="blink">&#9632;</span>';
+    el.appendChild(label);
+
+    var link = document.createElement('a');
+    link.href = post.url;
+    link.target = '_blank';
+    var titleEl = document.createElement('div');
+    titleEl.className = 'lead-title';
+    titleEl.textContent = truncate(post.title, 120);
+    link.appendChild(titleEl);
+    el.appendChild(link);
+
+    var meta = document.createElement('div');
+    meta.className = 'lead-meta';
+    meta.textContent = authorName(post) + ' \u00b7 ' + fmtDate(post.published_at);
+    el.appendChild(meta);
+
+    var readmore = document.createElement('a');
+    readmore.className = 'lead-link';
+    readmore.href = post.url;
+    readmore.target = '_blank';
+    readmore.textContent = '\u25b6 SEE FULL STORY >>>';
+    el.appendChild(readmore);
   }
 
-  // ─── RENDER STORY LIST ──────────────────────────────
   function renderStories(posts, containerId, startPage, skipFirst) {
-    const list = skipFirst ? posts.slice(1) : posts;
+    var list = skipFirst ? posts.slice(1) : posts;
+    var container = document.getElementById(containerId);
+    container.innerHTML = '';
+
     if (!list.length) {
-      document.getElementById(containerId).innerHTML = '<div class="error">NO STORIES FOUND</div>';
+      var err = document.createElement('div');
+      err.className = 'error';
+      err.textContent = 'NO STORIES FOUND';
+      container.appendChild(err);
       return;
     }
-    document.getElementById(containerId).innerHTML = list.map((p, i) => `
-      <a class="story" href="${p.url}" target="_blank">
-        <span class="story-page">${startPage + i}</span>
-        <span>
-          <div class="story-title">${truncate(p.title, 80)}</div>
-          <div class="story-meta">${p.primary_author?.name || 'The Quarry'} · ${fmtDate(p.published_at)}</div>
-        </span>
-      </a>
-    `).join('');
+
+    list.forEach(function(p, i) {
+      var a = document.createElement('a');
+      a.className = 'story';
+      a.href = p.url;
+      a.target = '_blank';
+
+      var pageSpan = document.createElement('span');
+      pageSpan.className = 'story-page';
+      pageSpan.textContent = String(startPage + i);
+
+      var inner = document.createElement('span');
+
+      var titleDiv = document.createElement('div');
+      titleDiv.className = 'story-title';
+      titleDiv.textContent = truncate(p.title, 80);
+
+      var metaDiv = document.createElement('div');
+      metaDiv.className = 'story-meta';
+      metaDiv.textContent = authorName(p) + ' \u00b7 ' + fmtDate(p.published_at);
+
+      inner.appendChild(titleDiv);
+      inner.appendChild(metaDiv);
+      a.appendChild(pageSpan);
+      a.appendChild(inner);
+      container.appendChild(a);
+    });
   }
 
-  // ─── RENDER COL-BOX LINKS ───────────────────────────
   function renderColBox(posts, containerId) {
+    var container = document.getElementById(containerId);
+    container.innerHTML = '';
+
     if (!posts.length) {
-      document.getElementById(containerId).innerHTML = '<div class="error">NO STORIES</div>';
+      var err = document.createElement('div');
+      err.className = 'error';
+      err.textContent = 'NO STORIES';
+      container.appendChild(err);
       return;
     }
-    document.getElementById(containerId).innerHTML = posts.map(p => `
-      <a href="${p.url}" target="_blank">
-        ${truncate(p.title, 40)}
-        <span>${p.primary_author?.name || 'The Quarry'} · ${fmtDate(p.published_at)}</span>
-      </a>
-    `).join('');
+
+    posts.forEach(function(p) {
+      var a = document.createElement('a');
+      a.href = p.url;
+      a.target = '_blank';
+      a.textContent = truncate(p.title, 40);
+
+      var span = document.createElement('span');
+      span.textContent = authorName(p) + ' \u00b7 ' + fmtDate(p.published_at);
+      a.appendChild(span);
+      container.appendChild(a);
+    });
   }
 
-  // ─── RENDER TICKER ──────────────────────────────────
   function renderTicker(posts) {
-    const text = posts.map(p => '◆ ' + p.title.toUpperCase()).join(' &nbsp;·&nbsp; ');
-    document.getElementById('ticker').innerHTML = '&nbsp;&nbsp;&nbsp;' + text + '&nbsp;&nbsp;&nbsp;';
+    var ticker = document.getElementById('ticker');
+    ticker.textContent = '\u00a0\u00a0\u00a0' +
+      posts.map(function(p) { return '\u25c6 ' + p.title.toUpperCase(); }).join('   \u00b7   ') +
+      '\u00a0\u00a0\u00a0';
   }
 
-  // ─── MAIN FETCH ─────────────────────────────────────
-  async function loadAll() {
-    try {
-      // Latest posts (lead + news list)
-      const latest = await fetchPosts({ limit: 8, include: 'authors', order: 'published_at desc' });
-      if (latest.length) {
-        renderLead(latest[0]);
-        renderStories(latest, 'stories-list', 102, true);
-        renderTicker(latest);
+  function showError(msg) {
+    ['lead-box','stories-list','dig-deeper','info-hub','election-stories'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.innerHTML = '';
+        var d = document.createElement('div');
+        d.className = 'error';
+        d.textContent = '\u26a0 ' + msg;
+        el.appendChild(d);
       }
+    });
+  }
 
-      // Dig Deeper tag
-      const digDeeper = await fetchPosts({ limit: 5, include: 'authors', filter: 'tag:dig-deeper', order: 'published_at desc' });
-      renderColBox(digDeeper, 'dig-deeper');
-
-      // Info Hub tag
-      const infoHub = await fetchPosts({ limit: 5, include: 'authors', filter: 'tag:information-hub', order: 'published_at desc' });
-      renderColBox(infoHub, 'info-hub');
-
-      // Election tag
-      const election = await fetchPosts({ limit: 3, include: 'authors', filter: 'filter: 'tag:election2025,tag:election', order: 'published_at desc' });
-      renderStories(election, 'election-stories', 401, false);
-
-    } catch (err) {
-      console.error(err);
-      ['lead-box','stories-list','dig-deeper','info-hub','election-stories'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '<div class="error">⚠ TRANSMISSION FAULT — CHECK API KEY</div>';
+  function loadAll() {
+    fetchPosts({ limit: 8, include: 'authors', order: 'published_at desc' })
+      .then(function(latest) {
+        if (latest.length) {
+          renderLead(latest[0]);
+          renderStories(latest, 'stories-list', 102, true);
+          renderTicker(latest);
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        showError('TRANSMISSION FAULT — CHECK API KEY AND URL');
       });
-    }
+
+    fetchPosts({ limit: 5, include: 'authors', filter: 'tag:dig-deeper', order: 'published_at desc' })
+      .then(function(posts) { renderColBox(posts, 'dig-deeper'); })
+      .catch(function() { document.getElementById('dig-deeper').innerHTML = '<div class="error">FAULT</div>'; });
+
+    fetchPosts({ limit: 5, include: 'authors', filter: 'tag:information-hub', order: 'published_at desc' })
+      .then(function(posts) { renderColBox(posts, 'info-hub'); })
+      .catch(function() { document.getElementById('info-hub').innerHTML = '<div class="error">FAULT</div>'; });
+
+    fetchPosts({ limit: 4, include: 'authors', filter: 'tag:election2025,tag:election', order: 'published_at desc' })
+      .then(function(posts) { renderStories(posts, 'election-stories', 401, false); })
+      .catch(function() { document.getElementById('election-stories').innerHTML = '<div class="error">FAULT</div>'; });
   }
 
   loadAll();
